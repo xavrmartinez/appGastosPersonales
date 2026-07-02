@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import useSWR from "swr";
+import { useCallback, useState, useTransition } from "react";
+import useSWR, { useSWRConfig } from "swr";
 import { CardChargeFormDialog } from "@/components/card-charge-form-dialog";
 import { CardFormDialog } from "@/components/card-form-dialog";
 import { MonthPicker } from "@/components/month-picker";
-import { fetchAllCardsWithCharges } from "@/lib/cards/actions";
+import {
+  fetchAllCardsWithCharges,
+  setCardChargeMonthPaid,
+} from "@/lib/cards/actions";
 import { allCardsKey } from "@/lib/cards/swr";
 import {
   chargeAppliesToMonth,
@@ -14,7 +17,9 @@ import {
 } from "@/lib/cards/utils";
 import { formatCurrency } from "@/lib/format/currency";
 import { getCurrentYearMonth } from "@/lib/format/month";
-import type { CardCharge } from "@/types/database";
+import { monthSummaryKey } from "@/lib/monthly/swr";
+import { cn } from "@/lib/utils";
+import type { AllCardsPayload, CardCharge } from "@/types/database";
 import { Badge } from "@/components/ui/badge";
 
 function getChargeBadgeLabel(charge: CardCharge, yearMonth: string): string {
@@ -38,21 +43,23 @@ function syncMonthToUrl(yearMonth: string) {
 }
 
 interface CardsDashboardProps {
-  initialCards: Awaited<ReturnType<typeof fetchAllCardsWithCharges>>;
+  initialData: AllCardsPayload;
   initialYearMonth: string;
 }
 
 export function CardsDashboard({
-  initialCards,
+  initialData,
   initialYearMonth,
 }: CardsDashboardProps) {
   const { data } = useSWR(allCardsKey(), fetchAllCardsWithCharges, {
-    fallbackData: initialCards,
+    fallbackData: initialData,
     revalidateIfStale: false,
     revalidateOnMount: false,
     revalidateOnReconnect: false,
   });
 
+  const { mutate } = useSWRConfig();
+  const [, startTransition] = useTransition();
   const [activeMonth, setActiveMonth] = useState(initialYearMonth);
 
   const handleMonthChange = useCallback((yearMonth: string) => {
@@ -60,7 +67,23 @@ export function CardsDashboard({
     syncMonthToUrl(yearMonth);
   }, []);
 
-  const cards = data ?? initialCards;
+  const payload = data ?? initialData;
+  const cards = payload.cards;
+  const paidSet = new Set(
+    payload.paidFlags.map((flag) => `${flag.chargeId}|${flag.yearMonth}`),
+  );
+
+  function isChargePaid(chargeId: string): boolean {
+    return paidSet.has(`${chargeId}|${activeMonth}`);
+  }
+
+  function handleTogglePaid(chargeId: string, nextPaid: boolean) {
+    startTransition(async () => {
+      await setCardChargeMonthPaid(chargeId, activeMonth, nextPaid);
+      await mutate(allCardsKey());
+      await mutate(monthSummaryKey(activeMonth));
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -109,34 +132,55 @@ export function CardsDashboard({
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {monthCharges.map((charge) => (
-                      <div
-                        key={charge.id}
-                        className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate font-medium">
-                              {charge.description}
+                    {monthCharges.map((charge) => {
+                      const paid = isChargePaid(charge.id);
+                      return (
+                        <div
+                          key={charge.id}
+                          className={cn(
+                            "flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3",
+                            paid && "opacity-60",
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 shrink-0 cursor-pointer"
+                            checked={paid}
+                            onChange={(event) =>
+                              handleTogglePaid(charge.id, event.target.checked)
+                            }
+                            aria-label="Marcar como pagado"
+                            title="Marcar como pagado"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p
+                                className={cn(
+                                  "truncate font-medium",
+                                  paid && "line-through",
+                                )}
+                              >
+                                {charge.description}
+                              </p>
+                              <Badge variant="secondary">
+                                {getChargeBadgeLabel(charge, activeMonth)}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <p className="whitespace-nowrap font-semibold">
+                              {formatCurrency(getMonthAmount(charge))}
                             </p>
-                            <Badge variant="secondary">
-                              {getChargeBadgeLabel(charge, activeMonth)}
-                            </Badge>
+                            <CardChargeFormDialog
+                              cardId={card.id}
+                              charge={charge}
+                              variant="edit"
+                            />
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                          <p className="whitespace-nowrap font-semibold">
-                            {formatCurrency(getMonthAmount(charge))}
-                          </p>
-                          <CardChargeFormDialog
-                            cardId={card.id}
-                            charge={charge}
-                            variant="edit"
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>

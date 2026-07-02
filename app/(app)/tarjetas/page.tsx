@@ -13,7 +13,7 @@ export default async function TarjetasPage({
       ? params.month
       : getCurrentYearMonth();
 
-  const cards = await fetchAllCardsWithCharges();
+  const data = await fetchAllCardsWithCharges();
 
-  return <CardsDashboard initialCards={cards} initialYearMonth={yearMonth} />;
+  return <CardsDashboard initialData={data} initialYearMonth={yearMonth} />;
 }

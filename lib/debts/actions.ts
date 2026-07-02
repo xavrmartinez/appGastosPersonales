@@ -69,9 +69,25 @@ export async function fetchDebtsForMonth(
     throw new Error(error.message);
   }
 
+  const { data: paidRows, error: paidError } = await supabase
+    .from("monthly_paid_status")
+    .select("item_id")
+    .eq("user_id", userId)
+    .eq("item_type", "debt")
+    .eq("year_month", yearMonth)
+    .eq("is_paid", true);
+
+  if (paidError) {
+    throw new Error(paidError.message);
+  }
+
+  const paidDebtIds = new Set(
+    (paidRows ?? []).map((row) => row.item_id as string),
+  );
+
   return ((data ?? []) as Debt[])
     .filter((debt) => debtAppliesToMonth(debt, yearMonth))
-    .map((debt) => toDebtMonthEntry(debt, yearMonth));
+    .map((debt) => toDebtMonthEntry(debt, yearMonth, paidDebtIds.has(debt.id)));
 }
 
 export async function fetchAllDebts(): Promise<Debt[]> {
@@ -90,6 +106,48 @@ export async function fetchAllDebts(): Promise<Debt[]> {
   }
 
   return (data ?? []) as Debt[];
+}
+
+export async function setDebtPaidGlobal(debtId: string, isPaid: boolean) {
+  const { supabase, userId } = await getAuthenticatedUserId();
+
+  const { error } = await supabase
+    .from("debts")
+    .update({ is_paid: isPaid })
+    .eq("id", debtId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/deudas");
+}
+
+export async function setDebtMonthPaid(
+  debtId: string,
+  yearMonth: string,
+  isPaid: boolean,
+) {
+  const { supabase, userId } = await getAuthenticatedUserId();
+
+  const { error } = await supabase.from("monthly_paid_status").upsert(
+    {
+      user_id: userId,
+      item_type: "debt",
+      item_id: debtId,
+      year_month: yearMonth,
+      is_paid: isPaid,
+    },
+    { onConflict: "user_id,item_type,item_id,year_month" },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
 }
 
 export async function createDebt(input: CreateDebtInput) {

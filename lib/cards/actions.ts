@@ -8,8 +8,10 @@ import {
 } from "@/lib/cards/utils";
 import { createClient } from "@/lib/supabase/server";
 import type {
+  AllCardsPayload,
   CardCharge,
   CardChargeMonthEntry,
+  CardChargePaidFlag,
   CardWithCharges,
   CreateCardChargeInput,
   CreateCardInput,
@@ -127,6 +129,22 @@ export async function fetchCardChargesForMonth(
     throw new Error(chargesError.message);
   }
 
+  const { data: paidRows, error: paidError } = await supabase
+    .from("monthly_paid_status")
+    .select("item_id")
+    .eq("user_id", userId)
+    .eq("item_type", "card_charge")
+    .eq("year_month", yearMonth)
+    .eq("is_paid", true);
+
+  if (paidError) {
+    throw new Error(paidError.message);
+  }
+
+  const paidChargeIds = new Set(
+    (paidRows ?? []).map((row) => row.item_id as string),
+  );
+
   return ((charges ?? []) as CardCharge[])
     .filter((charge) => chargeAppliesToMonth(charge, yearMonth))
     .map((charge) =>
@@ -134,11 +152,12 @@ export async function fetchCardChargesForMonth(
         charge,
         cardNameById.get(charge.card_id) ?? "Tarjeta",
         yearMonth,
+        paidChargeIds.has(charge.id),
       ),
     );
 }
 
-export async function fetchAllCardsWithCharges(): Promise<CardWithCharges[]> {
+export async function fetchAllCardsWithCharges(): Promise<AllCardsPayload> {
   const { supabase, userId } = await getAuthenticatedUserId();
 
   const { data: cards, error: cardsError } = await supabase
@@ -153,7 +172,7 @@ export async function fetchAllCardsWithCharges(): Promise<CardWithCharges[]> {
   }
 
   if (!cards?.length) {
-    return [];
+    return { cards: [], paidFlags: [] };
   }
 
   const { data: charges, error: chargesError } = await supabase
@@ -167,6 +186,17 @@ export async function fetchAllCardsWithCharges(): Promise<CardWithCharges[]> {
     throw new Error(chargesError.message);
   }
 
+  const { data: paidRows, error: paidError } = await supabase
+    .from("monthly_paid_status")
+    .select("item_id, year_month")
+    .eq("user_id", userId)
+    .eq("item_type", "card_charge")
+    .eq("is_paid", true);
+
+  if (paidError) {
+    throw new Error(paidError.message);
+  }
+
   const chargesByCard = new Map<string, CardCharge[]>();
   for (const charge of (charges ?? []) as CardCharge[]) {
     const existing = chargesByCard.get(charge.card_id) ?? [];
@@ -174,10 +204,45 @@ export async function fetchAllCardsWithCharges(): Promise<CardWithCharges[]> {
     chargesByCard.set(charge.card_id, existing);
   }
 
-  return (cards as CreditCard[]).map((card) => ({
-    ...card,
-    charges: chargesByCard.get(card.id) ?? [],
+  const cardsWithCharges: CardWithCharges[] = (cards as CreditCard[]).map(
+    (card) => ({
+      ...card,
+      charges: chargesByCard.get(card.id) ?? [],
+    }),
+  );
+
+  const paidFlags: CardChargePaidFlag[] = (paidRows ?? []).map((row) => ({
+    chargeId: row.item_id as string,
+    yearMonth: row.year_month as string,
   }));
+
+  return { cards: cardsWithCharges, paidFlags };
+}
+
+export async function setCardChargeMonthPaid(
+  chargeId: string,
+  yearMonth: string,
+  isPaid: boolean,
+) {
+  const { supabase, userId } = await getAuthenticatedUserId();
+
+  const { error } = await supabase.from("monthly_paid_status").upsert(
+    {
+      user_id: userId,
+      item_type: "card_charge",
+      item_id: chargeId,
+      year_month: yearMonth,
+      is_paid: isPaid,
+    },
+    { onConflict: "user_id,item_type,item_id,year_month" },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/tarjetas");
 }
 
 export async function createCard(input: CreateCardInput) {

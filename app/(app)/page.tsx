@@ -2,21 +2,10 @@ import { Suspense } from "react";
 import { ResumenDashboard } from "@/components/resumen-dashboard";
 import { ResumenSkeleton } from "@/components/resumen-skeleton";
 import { ensureMonthAndFetchItems } from "@/lib/monthly/actions";
-import {
-  getCurrentYearMonth,
-  isValidYearMonth,
-} from "@/lib/format/month";
+import { getCurrentYearMonth } from "@/lib/format/month";
 
-export default async function ResumenPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ month?: string }>;
-}) {
-  const params = await searchParams;
-  const yearMonth =
-    params.month && isValidYearMonth(params.month)
-      ? params.month
-      : getCurrentYearMonth();
+export default async function ResumenPage() {
+  const yearMonth = getCurrentYearMonth();
 
   const summary = await ensureMonthAndFetchItems(yearMonth);
 

@@ -75,6 +75,7 @@ export function DebtFormDialog({
       amount: parsedAmount,
       pay_year_month: payYearMonth,
       installment_count: installmentCount,
+      is_paid: debt?.is_paid ?? false,
       sort_order: debt?.sort_order ?? 0,
       created_at: debt?.created_at ?? "",
     };
@@ -193,6 +194,7 @@ export function DebtFormDialog({
               amount: parsedAmount,
               pay_year_month: resolvedPayYearMonth,
               installment_count: parsedInstallmentCount,
+              is_paid: false,
               sort_order: 0,
               created_at: "",
             });

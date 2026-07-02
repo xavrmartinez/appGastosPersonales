@@ -22,6 +22,7 @@ export interface MonthlyItem {
   source: ItemSource;
   recurring_template_id: string | null;
   is_modified: boolean;
+  is_paid: boolean;
   sort_order: number;
   created_at: string;
 }
@@ -33,6 +34,7 @@ export interface Debt {
   amount: number;
   pay_year_month: string | null;
   installment_count: number;
+  is_paid: boolean;
   sort_order: number;
   created_at: string;
 }
@@ -44,6 +46,8 @@ export interface DebtMonthEntry {
   installmentAmount: number;
   installmentIndex: number;
   installmentCount: number;
+  isPaid: boolean;
+  isPaidGlobal: boolean;
 }
 
 export type CardChargeType = "fixed" | "installment";
@@ -73,6 +77,16 @@ export interface CardWithCharges extends CreditCard {
   charges: CardCharge[];
 }
 
+export interface CardChargePaidFlag {
+  chargeId: string;
+  yearMonth: string;
+}
+
+export interface AllCardsPayload {
+  cards: CardWithCharges[];
+  paidFlags: CardChargePaidFlag[];
+}
+
 export interface CardChargeMonthEntry {
   id: string;
   cardId: string;
@@ -83,6 +97,7 @@ export interface CardChargeMonthEntry {
   totalAmount: number;
   installmentIndex?: number;
   installmentCount?: number;
+  isPaid: boolean;
 }
 
 export interface MonthSummary {

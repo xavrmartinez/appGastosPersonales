@@ -22,7 +22,12 @@ import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { useSWRConfig } from "swr";
 
-import { createItem, deleteItem, updateItem } from "@/lib/monthly/actions";
+import {
+  createItem,
+  deleteItem,
+  setItemPaid,
+  updateItem,
+} from "@/lib/monthly/actions";
 
 import { monthSummaryKey } from "@/lib/monthly/swr";
 
@@ -602,6 +607,10 @@ export function SortableItemRow({
 
   } = useSortable({ id: item.id });
 
+  const { mutate } = useSWRConfig();
+
+  const [, startTransition] = useTransition();
+
 
 
   const style = {
@@ -611,6 +620,20 @@ export function SortableItemRow({
     transition,
 
   };
+
+
+
+  function handleTogglePaid(nextPaid: boolean) {
+
+    startTransition(async () => {
+
+      await setItemPaid(item.id, nextPaid);
+
+      await mutate(monthSummaryKey(yearMonth));
+
+    });
+
+  }
 
 
 
@@ -627,6 +650,8 @@ export function SortableItemRow({
         "flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3",
 
         isDragging && "opacity-50 shadow-md",
+
+        item.is_paid && "opacity-60",
 
       )}
 
@@ -652,11 +677,43 @@ export function SortableItemRow({
 
 
 
+      <input
+
+        type="checkbox"
+
+        className="h-4 w-4 shrink-0 cursor-pointer"
+
+        checked={item.is_paid}
+
+        onChange={(event) => handleTogglePaid(event.target.checked)}
+
+        aria-label="Marcar como pagado"
+
+        title="Marcar como pagado"
+
+      />
+
+
+
       <div className="min-w-0 flex-1">
 
         <div className="flex flex-wrap items-center gap-2">
 
-          <p className="truncate font-medium">{item.description}</p>
+          <p
+
+            className={cn(
+
+              "truncate font-medium",
+
+              item.is_paid && "line-through",
+
+            )}
+
+          >
+
+            {item.description}
+
+          </p>
 
           <Badge variant={item.source === "recurring" ? "default" : "secondary"}>
 

@@ -1,11 +1,13 @@
 "use client";
 
-import useSWR from "swr";
+import { useTransition } from "react";
+import useSWR, { useSWRConfig } from "swr";
 import { DebtFormDialog } from "@/components/debt-form-dialog";
-import { fetchAllDebts } from "@/lib/debts/actions";
+import { fetchAllDebts, setDebtPaidGlobal } from "@/lib/debts/actions";
 import { allDebtsKey } from "@/lib/debts/swr";
 import { formatCurrency } from "@/lib/format/currency";
 import { formatYearMonthLabel, getCurrentYearMonth } from "@/lib/format/month";
+import { cn } from "@/lib/utils";
 import type { Debt } from "@/types/database";
 import { Badge } from "@/components/ui/badge";
 
@@ -33,7 +35,18 @@ export function DebtsDashboard({ initialDebts }: DebtsDashboardProps) {
     revalidateOnReconnect: false,
   });
 
+  const { mutate } = useSWRConfig();
+  const [, startTransition] = useTransition();
+
   const debts = data ?? initialDebts;
+
+  function handleTogglePaid(debtId: string, nextPaid: boolean) {
+    startTransition(async () => {
+      await setDebtPaidGlobal(debtId, nextPaid);
+      await mutate(allDebtsKey());
+      await mutate((key) => Array.isArray(key) && key[0] === "month-summary");
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -60,11 +73,31 @@ export function DebtsDashboard({ initialDebts }: DebtsDashboardProps) {
           {debts.map((debt) => (
             <div
               key={debt.id}
-              className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3"
+              className={cn(
+                "flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3",
+                debt.is_paid && "opacity-60",
+              )}
             >
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 cursor-pointer"
+                checked={debt.is_paid}
+                onChange={(event) =>
+                  handleTogglePaid(debt.id, event.target.checked)
+                }
+                aria-label="Marcar como pagada"
+                title="Marcar como pagada del todo"
+              />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate font-medium">{debt.description}</p>
+                  <p
+                    className={cn(
+                      "truncate font-medium",
+                      debt.is_paid && "line-through",
+                    )}
+                  >
+                    {debt.description}
+                  </p>
                   <Badge
                     variant={debt.pay_year_month ? "secondary" : "outline"}
                   >

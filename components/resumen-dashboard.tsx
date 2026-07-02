@@ -7,7 +7,6 @@ import { CardsSummarySection } from "@/components/cards-summary-section";
 import { DebtsSummarySection } from "@/components/debts-summary-section";
 import { ItemsDndBoard } from "@/components/items-dnd-board";
 import { MonthPicker } from "@/components/month-picker";
-import { getCurrentYearMonth } from "@/lib/format/month";
 import {
   ensureMonthAndFetchItems,
   fetchYearSummaries,
@@ -18,12 +17,6 @@ import type { MonthSummary } from "@/types/database";
 interface ResumenDashboardProps {
   initialYearMonth: string;
   initialSummary: MonthSummary;
-}
-
-function syncMonthToUrl(yearMonth: string) {
-  const url =
-    yearMonth === getCurrentYearMonth() ? "/" : `/?month=${yearMonth}`;
-  window.history.replaceState(null, "", url);
 }
 
 function getDisplaySummary(
@@ -77,7 +70,6 @@ export function ResumenDashboard({
 
   const handleMonthChange = useCallback((yearMonth: string) => {
     setActiveMonth(yearMonth);
-    syncMonthToUrl(yearMonth);
   }, []);
 
   const loadedYears = useRef<Set<number>>(new Set());
@@ -117,10 +109,18 @@ export function ResumenDashboard({
         expenses={summary.expenses}
       />
       {hasMonthDebts && (
-        <DebtsSummarySection debts={monthDebts} totalDebts={totalDebts} />
+        <DebtsSummarySection
+          yearMonth={activeMonth}
+          debts={monthDebts}
+          totalDebts={totalDebts}
+        />
       )}
       {hasMonthCards && (
-        <CardsSummarySection cards={monthCards} totalCards={totalCards} />
+        <CardsSummarySection
+          yearMonth={activeMonth}
+          cards={monthCards}
+          totalCards={totalCards}
+        />
       )}
     </div>
   );

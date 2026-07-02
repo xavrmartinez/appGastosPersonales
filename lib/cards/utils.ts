@@ -64,6 +64,7 @@ export function toCardChargeMonthEntry(
   charge: CardCharge,
   cardName: string,
   yearMonth: string,
+  isPaid = false,
 ): CardChargeMonthEntry {
   const entry: CardChargeMonthEntry = {
     id: charge.id,
@@ -73,6 +74,7 @@ export function toCardChargeMonthEntry(
     chargeType: charge.charge_type,
     monthAmount: getMonthAmount(charge),
     totalAmount: Number(charge.amount),
+    isPaid,
   };
 
   if (charge.charge_type === "installment") {

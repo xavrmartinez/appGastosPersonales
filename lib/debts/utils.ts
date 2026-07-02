@@ -41,7 +41,11 @@ export function getInstallmentIndex(debt: Debt, yearMonth: string): number {
   return monthDiff + 1;
 }
 
-export function toDebtMonthEntry(debt: Debt, yearMonth: string): DebtMonthEntry {
+export function toDebtMonthEntry(
+  debt: Debt,
+  yearMonth: string,
+  isPaid = false,
+): DebtMonthEntry {
   return {
     id: debt.id,
     description: debt.description,
@@ -49,5 +53,7 @@ export function toDebtMonthEntry(debt: Debt, yearMonth: string): DebtMonthEntry 
     installmentAmount: getInstallmentAmount(debt),
     installmentIndex: getInstallmentIndex(debt, yearMonth),
     installmentCount: debt.installment_count,
+    isPaid,
+    isPaidGlobal: Boolean(debt.is_paid),
   };
 }

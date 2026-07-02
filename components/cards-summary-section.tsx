@@ -1,17 +1,38 @@
+"use client";
+
 import Link from "next/link";
+import { useTransition } from "react";
+import { useSWRConfig } from "swr";
+import { setCardChargeMonthPaid } from "@/lib/cards/actions";
+import { allCardsKey } from "@/lib/cards/swr";
 import { formatCurrency } from "@/lib/format/currency";
+import { monthSummaryKey } from "@/lib/monthly/swr";
+import { cn } from "@/lib/utils";
 import type { CardChargeMonthEntry } from "@/types/database";
 import { Badge } from "@/components/ui/badge";
 
 interface CardsSummarySectionProps {
+  yearMonth: string;
   cards: CardChargeMonthEntry[];
   totalCards: number;
 }
 
 export function CardsSummarySection({
+  yearMonth,
   cards,
   totalCards,
 }: CardsSummarySectionProps) {
+  const { mutate } = useSWRConfig();
+  const [, startTransition] = useTransition();
+
+  function handleTogglePaid(chargeId: string, nextPaid: boolean) {
+    startTransition(async () => {
+      await setCardChargeMonthPaid(chargeId, yearMonth, nextPaid);
+      await mutate(monthSummaryKey(yearMonth));
+      await mutate(allCardsKey());
+    });
+  }
+
   return (
     <section className="space-y-4">
       <div>
@@ -29,10 +50,28 @@ export function CardsSummarySection({
         {cards.map((card) => (
           <div
             key={card.id}
-            className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3"
+            className={cn(
+              "flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3",
+              card.isPaid && "opacity-60",
+            )}
           >
+            <input
+              type="checkbox"
+              className="h-4 w-4 shrink-0 cursor-pointer"
+              checked={card.isPaid}
+              onChange={(event) =>
+                handleTogglePaid(card.id, event.target.checked)
+              }
+              aria-label="Marcar como pagado"
+              title="Marcar como pagado"
+            />
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <p className="truncate font-medium">
+              <p
+                className={cn(
+                  "truncate font-medium",
+                  card.isPaid && "line-through",
+                )}
+              >
                 <span className="text-muted-foreground">{card.cardName}</span>
                 {" · "}
                 {card.description}

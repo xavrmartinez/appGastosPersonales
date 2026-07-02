@@ -121,6 +121,22 @@ export async function ensureMonthAndFetchItems(
   );
 }
 
+export async function setItemPaid(itemId: string, isPaid: boolean) {
+  const { supabase, userId } = await getAuthenticatedUserId();
+
+  const { error } = await supabase
+    .from("monthly_items")
+    .update({ is_paid: isPaid })
+    .eq("id", itemId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+}
+
 export async function fetchYearSummaries(
   year: number,
 ): Promise<Record<string, MonthSummary>> {

@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { BalanceSummary } from "@/components/balance-summary";
 import { CardsSummarySection } from "@/components/cards-summary-section";
 import { DebtsSummarySection } from "@/components/debts-summary-section";
 import { ItemsDndBoard } from "@/components/items-dnd-board";
 import { MonthPicker } from "@/components/month-picker";
-import { getCurrentYearMonth, shiftYearMonth } from "@/lib/format/month";
-import { ensureMonthAndFetchItems } from "@/lib/monthly/actions";
+import { getCurrentYearMonth } from "@/lib/format/month";
+import {
+  ensureMonthAndFetchItems,
+  fetchYearSummaries,
+} from "@/lib/monthly/actions";
 import { emptySummaryFor, monthSummaryKey } from "@/lib/monthly/swr";
 import type { MonthSummary } from "@/types/database";
 
@@ -77,19 +80,22 @@ export function ResumenDashboard({
     syncMonthToUrl(yearMonth);
   }, []);
 
-  useEffect(() => {
-    const previousMonth = shiftYearMonth(activeMonth, -1);
-    const nextMonth = shiftYearMonth(activeMonth, 1);
+  const loadedYears = useRef<Set<number>>(new Set());
 
-    void ensureMonthAndFetchItems(previousMonth).then((monthSummary) => {
-      void globalMutate(monthSummaryKey(previousMonth), monthSummary, {
-        revalidate: false,
-      });
-    });
-    void ensureMonthAndFetchItems(nextMonth).then((monthSummary) => {
-      void globalMutate(monthSummaryKey(nextMonth), monthSummary, {
-        revalidate: false,
-      });
+  useEffect(() => {
+    const year = Number(activeMonth.split("-")[0]);
+
+    if (loadedYears.current.has(year)) {
+      return;
+    }
+    loadedYears.current.add(year);
+
+    void fetchYearSummaries(year).then((summaries) => {
+      for (const [yearMonth, monthSummary] of Object.entries(summaries)) {
+        void globalMutate(monthSummaryKey(yearMonth), monthSummary, {
+          revalidate: false,
+        });
+      }
     });
   }, [activeMonth, globalMutate]);
 

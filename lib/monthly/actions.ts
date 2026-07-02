@@ -121,6 +121,23 @@ export async function ensureMonthAndFetchItems(
   );
 }
 
+export async function fetchYearSummaries(
+  year: number,
+): Promise<Record<string, MonthSummary>> {
+  const months = Array.from(
+    { length: 12 },
+    (_, index) => `${year}-${String(index + 1).padStart(2, "0")}`,
+  );
+
+  const summaries = await Promise.all(
+    months.map((yearMonth) => ensureMonthAndFetchItems(yearMonth)),
+  );
+
+  return Object.fromEntries(
+    summaries.map((summary) => [summary.yearMonth, summary]),
+  );
+}
+
 export async function createItem(input: CreateItemInput) {
   const { supabase, userId } = await getAuthenticatedUserId();
   const sortOrder = await getNextSortOrder(

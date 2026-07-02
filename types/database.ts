@@ -152,7 +152,7 @@ export interface CreateCardChargeInput {
   installmentCount: number;
 }
 
-export interface UpdateCardChargeInput {
+export interface UpdateCardChargeInput{
   id: string;
   cardId: string;
   description: string;

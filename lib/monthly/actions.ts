@@ -280,7 +280,7 @@ export async function updateItem(input: UpdateItemInput) {
   revalidatePath("/");
 }
 
-export async function deleteItem(id: string, deleteTemplate = false) {
+export async function deleteItem(id: string) {
   const { supabase, userId } = await getAuthenticatedUserId();
 
   const { data: existing, error: fetchError } = await supabase
@@ -296,7 +296,7 @@ export async function deleteItem(id: string, deleteTemplate = false) {
 
   const item = existing as MonthlyItem;
 
-  if (deleteTemplate && item.recurring_template_id) {
+  if (item.recurring_template_id) {
     const { error: templateError } = await supabase
       .from("recurring_templates")
       .update({ active: false })
@@ -305,6 +305,17 @@ export async function deleteItem(id: string, deleteTemplate = false) {
 
     if (templateError) {
       throw new Error(templateError.message);
+    }
+
+    const { error: futureDeleteError } = await supabase
+      .from("monthly_items")
+      .delete()
+      .eq("user_id", userId)
+      .eq("recurring_template_id", item.recurring_template_id)
+      .gt("year_month", item.year_month);
+
+    if (futureDeleteError) {
+      throw new Error(futureDeleteError.message);
     }
   }
 

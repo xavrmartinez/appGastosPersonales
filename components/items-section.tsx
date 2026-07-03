@@ -44,12 +44,11 @@ export function ItemFormDialog({
 }: ItemFormDialogProps) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"recurring" | "one_off">(
-    item?.source === "recurring" ? "recurring" : "one_off",
+    item?.source === "one_off" ? "one_off" : "recurring",
   );
   const [description, setDescription] = useState(item?.description ?? "");
   const [amount, setAmount] = useState(item ? String(item.amount) : "");
   const [updateTemplate, setUpdateTemplate] = useState(false);
-  const [deleteTemplate, setDeleteTemplate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const { mutate } = useSWRConfig();
@@ -61,9 +60,8 @@ export function ItemFormDialog({
   function resetForm() {
     setDescription(item?.description ?? "");
     setAmount(item ? String(item.amount) : "");
-    setMode(item?.source === "recurring" ? "recurring" : "one_off");
+    setMode(item?.source === "one_off" ? "one_off" : "recurring");
     setUpdateTemplate(false);
-    setDeleteTemplate(false);
     setError(null);
   }
 
@@ -130,8 +128,17 @@ export function ItemFormDialog({
 
     startTransition(async () => {
       try {
-        await deleteItem(item.id, deleteTemplate);
+        await deleteItem(item.id);
         await mutate(monthSummaryKey(yearMonth));
+        if (item.source === "recurring") {
+          void mutate(
+            (key) =>
+              Array.isArray(key) &&
+              key[0] === "month-summary" &&
+              typeof key[1] === "string" &&
+              key[1] > yearMonth,
+          );
+        }
         setOpen(false);
         resetForm();
       } catch (deleteError) {
@@ -187,7 +194,7 @@ export function ItemFormDialog({
                 }
               >
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="recurring">Recurrente</TabsTrigger>
+                  <TabsTrigger value="recurring">Fijo</TabsTrigger>
                   <TabsTrigger value="one_off">Solo este mes</TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -223,17 +230,6 @@ export function ItemFormDialog({
                 onChange={(event) => setUpdateTemplate(event.target.checked)}
               />
               Actualizar plantilla (afecta meses futuros no modificados)
-            </label>
-          )}
-
-          {isEditing && item?.source === "recurring" && (
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={deleteTemplate}
-                onChange={(event) => setDeleteTemplate(event.target.checked)}
-              />
-              Dejar de repetir en meses futuros
             </label>
           )}
 
@@ -338,7 +334,7 @@ export function ItemRow({ yearMonth, type, item, monthLabel }: ItemRowProps) {
           </p>
           <Badge variant={item.source === "recurring" ? "default" : "secondary"}>
             {item.source === "recurring"
-              ? "Recurrente"
+              ? "Fijo"
               : `Solo ${monthLabel.split(" ")[0]}`}
           </Badge>
         </div>

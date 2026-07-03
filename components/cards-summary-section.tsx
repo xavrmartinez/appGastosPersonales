@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useSWRConfig } from "swr";
 import { setCardMonthPaid } from "@/lib/cards/actions";
-import { allCardsKey } from "@/lib/cards/swr";
 import { formatCurrency } from "@/lib/format/currency";
 import { monthSummaryKey } from "@/lib/monthly/swr";
 import { cn } from "@/lib/utils";
@@ -71,7 +70,6 @@ export function CardsSummarySection({
           : current,
       { revalidate: false },
     );
-    void mutate(allCardsKey());
     void setCardMonthPaid(cardId, yearMonth, nextPaid);
   }
 

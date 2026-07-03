@@ -49,7 +49,6 @@ export function DebtsDashboard({ initialDebts }: DebtsDashboardProps) {
           : current,
       { revalidate: false },
     );
-    void mutate((key) => Array.isArray(key) && key[0] === "month-summary");
     void setDebtPaidGlobal(debtId, nextPaid);
   }
 

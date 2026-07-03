@@ -91,6 +91,16 @@ export function ResumenDashboard({
     });
   }, [activeMonth, globalMutate]);
 
+  const isInitialMonth = useRef(true);
+
+  useEffect(() => {
+    if (isInitialMonth.current) {
+      isInitialMonth.current = false;
+      return;
+    }
+    void globalMutate(monthSummaryKey(activeMonth));
+  }, [activeMonth, globalMutate]);
+
   return (
     <div className="space-y-8">
       <MonthPicker yearMonth={activeMonth} onMonthChange={handleMonthChange} />

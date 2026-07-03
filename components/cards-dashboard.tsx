@@ -17,7 +17,6 @@ import {
 } from "@/lib/cards/utils";
 import { formatCurrency } from "@/lib/format/currency";
 import { getCurrentYearMonth } from "@/lib/format/month";
-import { monthSummaryKey } from "@/lib/monthly/swr";
 import { cn } from "@/lib/utils";
 import type { AllCardsPayload, CardCharge } from "@/types/database";
 import { Badge } from "@/components/ui/badge";
@@ -103,7 +102,6 @@ export function CardsDashboard({
       },
       { revalidate: false },
     );
-    void mutate(monthSummaryKey(activeMonth));
     void setCardMonthPaid(cardId, activeMonth, nextPaid);
   }
 

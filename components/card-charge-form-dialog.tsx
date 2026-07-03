@@ -44,6 +44,12 @@ function buildPreviewMonths(payYearMonth: string, installmentCount: number) {
   );
 }
 
+function getTodayIsoDate() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
 export function CardChargeFormDialog({
   cardId,
   charge,
@@ -63,6 +69,9 @@ export function CardChargeFormDialog({
   );
   const [installmentCount, setInstallmentCount] = useState(
     charge?.installment_count ?? 1,
+  );
+  const [chargeDate, setChargeDate] = useState(
+    charge?.charge_date ?? getTodayIsoDate(),
   );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -91,6 +100,7 @@ export function CardChargeFormDialog({
       charge_type: "installment",
       pay_year_month: payYearMonth,
       installment_count: installmentCount,
+      charge_date: chargeDate,
       sort_order: charge?.sort_order ?? 0,
       created_at: charge?.created_at ?? "",
     };
@@ -104,6 +114,7 @@ export function CardChargeFormDialog({
     cardId,
     charge,
     chargeType,
+    chargeDate,
     description,
     installmentCount,
     noMonth,
@@ -119,6 +130,7 @@ export function CardChargeFormDialog({
       charge ? charge.charge_type === "installment" && !charge.pay_year_month : false,
     );
     setInstallmentCount(charge?.installment_count ?? 1);
+    setChargeDate(charge?.charge_date ?? getTodayIsoDate());
     setError(null);
   }
 
@@ -207,6 +219,7 @@ export function CardChargeFormDialog({
       chargeType,
       payYearMonth: resolvedPayYearMonth,
       installmentCount: parsedInstallmentCount,
+      chargeDate,
     };
 
     startTransition(async () => {
@@ -219,6 +232,7 @@ export function CardChargeFormDialog({
             charge_type: chargeType,
             pay_year_month: resolvedPayYearMonth,
             installment_count: parsedInstallmentCount,
+            charge_date: chargeDate,
           });
         } else {
           await createCardCharge(payload);
@@ -231,6 +245,7 @@ export function CardChargeFormDialog({
             charge_type: chargeType,
             pay_year_month: resolvedPayYearMonth,
             installment_count: parsedInstallmentCount,
+            charge_date: chargeDate,
             sort_order: 0,
             created_at: "",
           });
@@ -331,6 +346,16 @@ export function CardChargeFormDialog({
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
               placeholder={chargeType === "fixed" ? "50000" : "300000"}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="charge-date">Fecha de la compra</Label>
+            <Input
+              id="charge-date"
+              type="date"
+              value={chargeDate}
+              onChange={(event) => setChargeDate(event.target.value)}
             />
           </div>
 

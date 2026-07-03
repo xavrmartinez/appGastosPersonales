@@ -1,6 +1,5 @@
 "use client";
 
-import { useTransition } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { DebtFormDialog } from "@/components/debt-form-dialog";
 import { fetchAllDebts, setDebtPaidGlobal } from "@/lib/debts/actions";
@@ -36,16 +35,22 @@ export function DebtsDashboard({ initialDebts }: DebtsDashboardProps) {
   });
 
   const { mutate } = useSWRConfig();
-  const [, startTransition] = useTransition();
 
   const debts = data ?? initialDebts;
 
   function handleTogglePaid(debtId: string, nextPaid: boolean) {
-    startTransition(async () => {
-      await setDebtPaidGlobal(debtId, nextPaid);
-      await mutate(allDebtsKey());
-      await mutate((key) => Array.isArray(key) && key[0] === "month-summary");
-    });
+    void mutate(
+      allDebtsKey(),
+      (current: Debt[] | undefined) =>
+        current
+          ? current.map((debt) =>
+              debt.id === debtId ? { ...debt, is_paid: nextPaid } : debt,
+            )
+          : current,
+      { revalidate: false },
+    );
+    void mutate((key) => Array.isArray(key) && key[0] === "month-summary");
+    void setDebtPaidGlobal(debtId, nextPaid);
   }
 
   return (

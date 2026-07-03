@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { CardChargeFormDialog } from "@/components/card-charge-form-dialog";
 import { CardFormDialog } from "@/components/card-form-dialog";
 import { MonthPicker } from "@/components/month-picker";
 import {
   fetchAllCardsWithCharges,
-  setCardChargeMonthPaid,
+  setCardMonthPaid,
 } from "@/lib/cards/actions";
 import { allCardsKey } from "@/lib/cards/swr";
 import {
@@ -32,6 +32,14 @@ function getChargeBadgeLabel(charge: CardCharge, yearMonth: string): string {
 
 function getMonthTotal(charges: CardCharge[]): number {
   return charges.reduce((sum, charge) => sum + getMonthAmount(charge), 0);
+}
+
+function formatDayMonth(isoDate: string): string {
+  const parts = isoDate.split("-");
+  if (parts.length !== 3) {
+    return isoDate;
+  }
+  return `${parts[2]}/${parts[1]}`;
 }
 
 function syncMonthToUrl(yearMonth: string) {
@@ -59,7 +67,6 @@ export function CardsDashboard({
   });
 
   const { mutate } = useSWRConfig();
-  const [, startTransition] = useTransition();
   const [activeMonth, setActiveMonth] = useState(initialYearMonth);
 
   const handleMonthChange = useCallback((yearMonth: string) => {
@@ -70,19 +77,34 @@ export function CardsDashboard({
   const payload = data ?? initialData;
   const cards = payload.cards;
   const paidSet = new Set(
-    payload.paidFlags.map((flag) => `${flag.chargeId}|${flag.yearMonth}`),
+    payload.paidFlags.map((flag) => `${flag.cardId}|${flag.yearMonth}`),
   );
 
-  function isChargePaid(chargeId: string): boolean {
-    return paidSet.has(`${chargeId}|${activeMonth}`);
+  function isCardPaid(cardId: string): boolean {
+    return paidSet.has(`${cardId}|${activeMonth}`);
   }
 
-  function handleTogglePaid(chargeId: string, nextPaid: boolean) {
-    startTransition(async () => {
-      await setCardChargeMonthPaid(chargeId, activeMonth, nextPaid);
-      await mutate(allCardsKey());
-      await mutate(monthSummaryKey(activeMonth));
-    });
+  function handleTogglePaid(cardId: string, nextPaid: boolean) {
+    void mutate(
+      allCardsKey(),
+      (current: AllCardsPayload | undefined) => {
+        if (!current) {
+          return current;
+        }
+        const withoutFlag = current.paidFlags.filter(
+          (flag) => !(flag.cardId === cardId && flag.yearMonth === activeMonth),
+        );
+        return {
+          ...current,
+          paidFlags: nextPaid
+            ? [...withoutFlag, { cardId, yearMonth: activeMonth }]
+            : withoutFlag,
+        };
+      },
+      { revalidate: false },
+    );
+    void mutate(monthSummaryKey(activeMonth));
+    void setCardMonthPaid(cardId, activeMonth, nextPaid);
   }
 
   return (
@@ -110,11 +132,27 @@ export function CardsDashboard({
             const monthCharges = card.charges.filter((charge) =>
               chargeAppliesToMonth(charge, activeMonth),
             );
+            const paid = isCardPaid(card.id);
 
             return (
-              <section key={card.id} className="space-y-3">
+              <section
+                key={card.id}
+                className={cn("space-y-3", paid && "opacity-60")}
+              >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2">
+                    {monthCharges.length > 0 && (
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 shrink-0 cursor-pointer"
+                        checked={paid}
+                        onChange={(event) =>
+                          handleTogglePaid(card.id, event.target.checked)
+                        }
+                        aria-label="Marcar tarjeta como pagada"
+                        title="Marcar tarjeta como pagada"
+                      />
+                    )}
                     <h3 className="text-lg font-semibold">{card.name}</h3>
                     {monthCharges.length > 0 && (
                       <span className="text-sm font-semibold text-violet-600">
@@ -132,55 +170,37 @@ export function CardsDashboard({
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {monthCharges.map((charge) => {
-                      const paid = isChargePaid(charge.id);
-                      return (
-                        <div
-                          key={charge.id}
-                          className={cn(
-                            "flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3",
-                            paid && "opacity-60",
-                          )}
-                        >
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 shrink-0 cursor-pointer"
-                            checked={paid}
-                            onChange={(event) =>
-                              handleTogglePaid(charge.id, event.target.checked)
-                            }
-                            aria-label="Marcar como pagado"
-                            title="Marcar como pagado"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p
-                                className={cn(
-                                  "truncate font-medium",
-                                  paid && "line-through",
-                                )}
-                              >
-                                {charge.description}
-                              </p>
-                              <Badge variant="secondary">
-                                {getChargeBadgeLabel(charge, activeMonth)}
-                              </Badge>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <p className="whitespace-nowrap font-semibold">
-                              {formatCurrency(getMonthAmount(charge))}
+                    {monthCharges.map((charge) => (
+                      <div
+                        key={charge.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3"
+                      >
+                        <span className="shrink-0 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                          {formatDayMonth(charge.charge_date)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate font-medium">
+                              {charge.description}
                             </p>
-                            <CardChargeFormDialog
-                              cardId={card.id}
-                              charge={charge}
-                              variant="edit"
-                            />
+                            <Badge variant="secondary">
+                              {getChargeBadgeLabel(charge, activeMonth)}
+                            </Badge>
                           </div>
                         </div>
-                      );
-                    })}
+
+                        <div className="flex items-center gap-2">
+                          <p className="whitespace-nowrap font-semibold">
+                            {formatCurrency(getMonthAmount(charge))}
+                          </p>
+                          <CardChargeFormDialog
+                            cardId={card.id}
+                            charge={charge}
+                            variant="edit"
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </section>

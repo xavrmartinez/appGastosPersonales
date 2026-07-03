@@ -69,6 +69,7 @@ export interface CardCharge {
   charge_type: CardChargeType;
   pay_year_month: string | null;
   installment_count: number;
+  charge_date: string;
   sort_order: number;
   created_at: string;
 }
@@ -77,14 +78,14 @@ export interface CardWithCharges extends CreditCard {
   charges: CardCharge[];
 }
 
-export interface CardChargePaidFlag {
-  chargeId: string;
+export interface CardPaidFlag {
+  cardId: string;
   yearMonth: string;
 }
 
 export interface AllCardsPayload {
   cards: CardWithCharges[];
-  paidFlags: CardChargePaidFlag[];
+  paidFlags: CardPaidFlag[];
 }
 
 export interface CardChargeMonthEntry {
@@ -165,6 +166,7 @@ export interface CreateCardChargeInput {
   chargeType: CardChargeType;
   payYearMonth: string | null;
   installmentCount: number;
+  chargeDate: string;
 }
 
 export interface UpdateCardChargeInput{
@@ -175,4 +177,5 @@ export interface UpdateCardChargeInput{
   chargeType: CardChargeType;
   payYearMonth: string | null;
   installmentCount: number;
+  chargeDate: string;
 }

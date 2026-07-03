@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useTransition } from "react";
 import { useSWRConfig } from "swr";
 import { setDebtMonthPaid } from "@/lib/debts/actions";
 import { formatCurrency } from "@/lib/format/currency";
 import { monthSummaryKey } from "@/lib/monthly/swr";
 import { cn } from "@/lib/utils";
-import type { DebtMonthEntry } from "@/types/database";
+import type { DebtMonthEntry, MonthSummary } from "@/types/database";
 import { Badge } from "@/components/ui/badge";
 
 interface DebtsSummarySectionProps {
@@ -22,13 +21,22 @@ export function DebtsSummarySection({
   totalDebts,
 }: DebtsSummarySectionProps) {
   const { mutate } = useSWRConfig();
-  const [, startTransition] = useTransition();
 
   function handleTogglePaid(debtId: string, nextPaid: boolean) {
-    startTransition(async () => {
-      await setDebtMonthPaid(debtId, yearMonth, nextPaid);
-      await mutate(monthSummaryKey(yearMonth));
-    });
+    void mutate(
+      monthSummaryKey(yearMonth),
+      (current: MonthSummary | undefined) =>
+        current
+          ? {
+              ...current,
+              debts: current.debts.map((debt) =>
+                debt.id === debtId ? { ...debt, isPaid: nextPaid } : debt,
+              ),
+            }
+          : current,
+      { revalidate: false },
+    );
+    void setDebtMonthPaid(debtId, yearMonth, nextPaid);
   }
 
   return (

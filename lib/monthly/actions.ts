@@ -62,8 +62,14 @@ function buildSummary(
   debts: DebtMonthEntry[],
   cards: CardChargeMonthEntry[],
 ): MonthSummary {
-  const incomes = items.filter((item) => item.type === "income");
-  const expenses = items.filter((item) => item.type === "expense");
+  const byAmountDesc = (a: MonthlyItem, b: MonthlyItem) =>
+    Number(b.amount) - Number(a.amount);
+  const incomes = items
+    .filter((item) => item.type === "income")
+    .sort(byAmountDesc);
+  const expenses = items
+    .filter((item) => item.type === "expense")
+    .sort(byAmountDesc);
   const totalIncome = incomes.reduce((sum, item) => sum + Number(item.amount), 0);
   const totalExpense = expenses.reduce((sum, item) => sum + Number(item.amount), 0);
   const totalDebts = debts.reduce(

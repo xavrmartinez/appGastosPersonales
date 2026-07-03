@@ -11,7 +11,7 @@ import type {
   AllCardsPayload,
   CardCharge,
   CardChargeMonthEntry,
-  CardChargePaidFlag,
+  CardPaidFlag,
   CardWithCharges,
   CreateCardChargeInput,
   CreateCardInput,
@@ -133,7 +133,7 @@ export async function fetchCardChargesForMonth(
     .from("monthly_paid_status")
     .select("item_id")
     .eq("user_id", userId)
-    .eq("item_type", "card_charge")
+    .eq("item_type", "card")
     .eq("year_month", yearMonth)
     .eq("is_paid", true);
 
@@ -141,7 +141,7 @@ export async function fetchCardChargesForMonth(
     throw new Error(paidError.message);
   }
 
-  const paidChargeIds = new Set(
+  const paidCardIds = new Set(
     (paidRows ?? []).map((row) => row.item_id as string),
   );
 
@@ -152,7 +152,7 @@ export async function fetchCardChargesForMonth(
         charge,
         cardNameById.get(charge.card_id) ?? "Tarjeta",
         yearMonth,
-        paidChargeIds.has(charge.id),
+        paidCardIds.has(charge.card_id),
       ),
     );
 }
@@ -190,7 +190,7 @@ export async function fetchAllCardsWithCharges(): Promise<AllCardsPayload> {
     .from("monthly_paid_status")
     .select("item_id, year_month")
     .eq("user_id", userId)
-    .eq("item_type", "card_charge")
+    .eq("item_type", "card")
     .eq("is_paid", true);
 
   if (paidError) {
@@ -211,16 +211,16 @@ export async function fetchAllCardsWithCharges(): Promise<AllCardsPayload> {
     }),
   );
 
-  const paidFlags: CardChargePaidFlag[] = (paidRows ?? []).map((row) => ({
-    chargeId: row.item_id as string,
+  const paidFlags: CardPaidFlag[] = (paidRows ?? []).map((row) => ({
+    cardId: row.item_id as string,
     yearMonth: row.year_month as string,
   }));
 
   return { cards: cardsWithCharges, paidFlags };
 }
 
-export async function setCardChargeMonthPaid(
-  chargeId: string,
+export async function setCardMonthPaid(
+  cardId: string,
   yearMonth: string,
   isPaid: boolean,
 ) {
@@ -229,8 +229,8 @@ export async function setCardChargeMonthPaid(
   const { error } = await supabase.from("monthly_paid_status").upsert(
     {
       user_id: userId,
-      item_type: "card_charge",
-      item_id: chargeId,
+      item_type: "card",
+      item_id: cardId,
       year_month: yearMonth,
       is_paid: isPaid,
     },
@@ -314,6 +314,7 @@ export async function createCardCharge(input: CreateCardChargeInput) {
     charge_type: input.chargeType,
     pay_year_month: normalized.pay_year_month,
     installment_count: normalized.installment_count,
+    charge_date: input.chargeDate,
     sort_order: sortOrder,
   });
 
@@ -338,6 +339,7 @@ export async function updateCardCharge(input: UpdateCardChargeInput) {
       charge_type: input.chargeType,
       pay_year_month: normalized.pay_year_month,
       installment_count: normalized.installment_count,
+      charge_date: input.chargeDate,
     })
     .eq("id", input.id)
     .eq("user_id", userId);

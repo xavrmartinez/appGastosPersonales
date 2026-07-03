@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useTransition } from "react";
 import { useSWRConfig } from "swr";
-import { setCardChargeMonthPaid } from "@/lib/cards/actions";
+import { setCardMonthPaid } from "@/lib/cards/actions";
 import { allCardsKey } from "@/lib/cards/swr";
 import { formatCurrency } from "@/lib/format/currency";
 import { monthSummaryKey } from "@/lib/monthly/swr";
 import { cn } from "@/lib/utils";
-import type { CardChargeMonthEntry } from "@/types/database";
+import type {
+  CardChargeMonthEntry,
+  MonthSummary,
+} from "@/types/database";
 import { Badge } from "@/components/ui/badge";
 
 interface CardsSummarySectionProps {
@@ -17,20 +19,60 @@ interface CardsSummarySectionProps {
   totalCards: number;
 }
 
+interface CardGroup {
+  cardId: string;
+  cardName: string;
+  entries: CardChargeMonthEntry[];
+  subtotal: number;
+  isPaid: boolean;
+}
+
+function groupByCard(cards: CardChargeMonthEntry[]): CardGroup[] {
+  const groups = new Map<string, CardGroup>();
+  for (const entry of cards) {
+    const group = groups.get(entry.cardId);
+    if (group) {
+      group.entries.push(entry);
+      group.subtotal += entry.monthAmount;
+    } else {
+      groups.set(entry.cardId, {
+        cardId: entry.cardId,
+        cardName: entry.cardName,
+        entries: [entry],
+        subtotal: entry.monthAmount,
+        isPaid: entry.isPaid,
+      });
+    }
+  }
+  return [...groups.values()];
+}
+
 export function CardsSummarySection({
   yearMonth,
   cards,
   totalCards,
 }: CardsSummarySectionProps) {
   const { mutate } = useSWRConfig();
-  const [, startTransition] = useTransition();
+  const groups = groupByCard(cards);
 
-  function handleTogglePaid(chargeId: string, nextPaid: boolean) {
-    startTransition(async () => {
-      await setCardChargeMonthPaid(chargeId, yearMonth, nextPaid);
-      await mutate(monthSummaryKey(yearMonth));
-      await mutate(allCardsKey());
-    });
+  function handleTogglePaid(cardId: string, nextPaid: boolean) {
+    void mutate(
+      monthSummaryKey(yearMonth),
+      (current: MonthSummary | undefined) =>
+        current
+          ? {
+              ...current,
+              cards: current.cards.map((entry) =>
+                entry.cardId === cardId
+                  ? { ...entry, isPaid: nextPaid }
+                  : entry,
+              ),
+            }
+          : current,
+      { revalidate: false },
+    );
+    void mutate(allCardsKey());
+    void setCardMonthPaid(cardId, yearMonth, nextPaid);
   }
 
   return (
@@ -46,51 +88,67 @@ export function CardsSummarySection({
         </p>
       </div>
 
-      <div className="space-y-2">
-        {cards.map((card) => (
+      <div className="space-y-4">
+        {groups.map((group) => (
           <div
-            key={card.id}
+            key={group.cardId}
             className={cn(
-              "flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3",
-              card.isPaid && "opacity-60",
+              "space-y-2 rounded-lg border bg-card p-3",
+              group.isPaid && "opacity-60",
             )}
           >
-            <input
-              type="checkbox"
-              className="h-4 w-4 shrink-0 cursor-pointer"
-              checked={card.isPaid}
-              onChange={(event) =>
-                handleTogglePaid(card.id, event.target.checked)
-              }
-              aria-label="Marcar como pagado"
-              title="Marcar como pagado"
-            />
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <p
-                className={cn(
-                  "truncate font-medium",
-                  card.isPaid && "line-through",
-                )}
-              >
-                <span className="text-muted-foreground">{card.cardName}</span>
-                {" · "}
-                {card.description}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 shrink-0 cursor-pointer"
+                  checked={group.isPaid}
+                  onChange={(event) =>
+                    handleTogglePaid(group.cardId, event.target.checked)
+                  }
+                  aria-label="Marcar tarjeta como pagada"
+                  title="Marcar tarjeta como pagada"
+                />
+                <p
+                  className={cn(
+                    "font-semibold",
+                    group.isPaid && "line-through",
+                  )}
+                >
+                  {group.cardName}
+                </p>
+              </div>
+              <p className="whitespace-nowrap font-semibold text-violet-600">
+                {formatCurrency(group.subtotal)}
               </p>
-              {card.chargeType === "installment" &&
-                card.installmentCount &&
-                card.installmentCount > 1 &&
-                card.installmentIndex && (
-                  <Badge variant="secondary">
-                    Cuota {card.installmentIndex}/{card.installmentCount}
-                  </Badge>
-                )}
-              {card.chargeType === "fixed" && (
-                <Badge variant="outline">Fijo</Badge>
-              )}
             </div>
-            <p className="whitespace-nowrap font-semibold text-violet-600">
-              {formatCurrency(card.monthAmount)}
-            </p>
+
+            <div className="space-y-1 pl-6">
+              {group.entries.map((card) => (
+                <div
+                  key={card.id}
+                  className="flex items-center justify-between gap-3 text-sm"
+                >
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                    <p className="truncate">{card.description}</p>
+                    {card.chargeType === "installment" &&
+                      card.installmentCount &&
+                      card.installmentCount > 1 &&
+                      card.installmentIndex && (
+                        <Badge variant="secondary">
+                          Cuota {card.installmentIndex}/{card.installmentCount}
+                        </Badge>
+                      )}
+                    {card.chargeType === "fixed" && (
+                      <Badge variant="outline">Fijo</Badge>
+                    )}
+                  </div>
+                  <p className="whitespace-nowrap text-muted-foreground">
+                    {formatCurrency(card.monthAmount)}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
 
